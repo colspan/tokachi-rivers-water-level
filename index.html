@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>十勝地方の河川水位可視化</title>
+  <link rel="stylesheet" href="lib/materialize.min.css">
+  <script src="lib/d3.min.js"></script>
+  <script src="lib/topojson.min.js"></script>
+  <script type="text/javascript" src="lib/jquery-2.1.4.min.js"></script>
+  <script src="lib/materialize.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <h1>十勝地方の河川水位可視化</h1>
+  <iframe src="https://www.facebook.com/plugins/like.php?href=https%3A%2F%2Fcolspan.github.io%2F%2Ftokachi-rivers-water-level%2F&width=129&layout=button_count&action=like&size=small&show_faces=false&share=true&height=46&appId=123030901113452" width="129" height="46" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowTransparency="true"></iframe>
+  <svg id="drawarea"></svg>
+  <form action="#">
+    <p class="range-field">
+      <input type="range" id="index-selector" min="0" max="100"/>
+    </p>
+  </form>
+  <script src="js/scripts.js"></script>
+</body>
+</html>
