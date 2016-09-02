@@ -77,96 +77,29 @@ function init(){
     function get_datetime(data,target_index){
         return data[target_index]["datetime"];
     }
-    function ready(data){
-        river_log = data;
-
-        Object.keys(domains_river).forEach(function(k){
-            scales_river.push( d3.scaleLinear()
-            .domain(domains_river[k])
-            .range([0, range_river_circle]));
-
-            c_scales_river.push( d3.scaleLinear()
-            .domain(domains_river[k])
-            .range(["blue","red"]));
-
-            positions.push( siteinfos[k].coordinate );
-        });
-
-        var target_index = 0;
-        var target_row = get_row(data,target_index);
-        var target_interval;
-        var update_index = function(){
-            target_index += 1;
-            if(target_index>data.length-1) target_index = 0;
-            d3.select("#index-selector").property("value", target_index);
-            update_river(get_row(river_log,target_index),get_datetime(river_log,target_index));
-            update_dam(get_row(dam_log,target_index),get_datetime(dam_log,target_index));
-        }
-        d3.select("#index-selector").attr("max", data.length-1);
-        d3.select("#index-selector").on("input", function(){
-            clearInterval(target_interval);
-            update_river(get_row(river_log,this.value),get_datetime(river_log,this.value));
-            update_dam(get_row(dam_log,this.value),get_datetime(dam_log,this.value));
-        });
-        d3.select("#index-selector").on("change", function(){
-            target_index = +this.value;
-            target_interval = setInterval(update_index, 100);
-        });
-        target_interval = setInterval(update_index, 100);
-
-    }
-    function update_dam(target_row,target_datetime){
-        var rects = svg.selectAll("rect")
-        .data(target_row);
-        rects.enter()
-        .append("rect");
-        rects.exit().remove();
-        rects.attr("x", 420)
-        .attr("y", function(d,i){
-            var y = (i+1) * 22 + 450;
-            return y;
-        })
-        .attr("height", 18)
-        .attr("width", function(d,i) {
-            var y = scales_dam[i](d);
-            if(y<0) y=1;
-            return y;
-        })
-        .attr("fill", function(d,i){
-            return c_scales_dam[i](d);
-        });
-
-    }
-    var timeFormat = d3.timeFormat("%Y/%m/%d %H:%M");
-    function update_river(target_row,target_datetime){
-        var alert_counter = 0;
-        var circles = svg.selectAll("circle")
-        .data(target_row);
-        circles.enter()
-        .append("circle");
-        circles.exit().remove();
-        circles.attr("cx", function(d,i){
-            var x = projection(positions[i])[0];
-            return x;
-        }).attr("cy", function(d,i){
-            var y = projection(positions[i])[1];
-            return y;
-        })
-        .attr("r", function(d,i) {
-            var v = scales_river[i](d);
-            if(v<0) v = 1;
-            if(v>range_river_circle*0.8) alert_counter++; // 水位が大きくなったら警告フラグ発動
-            return v;
-        })
-        .attr("fill", function(d,i){
-            return c_scales_river[i](d);
-        });
-
-        text_date.text(timeFormat(target_datetime));
-        text_date.style("fill", alert_counter > 2 ? "red" : "black");
-    }
-
     // 処理開始
+
+    Object.keys(domains_river).forEach(function(k){
+        scales_river.push( d3.scaleLinear()
+        .domain(domains_river[k])
+        .range([0, range_river_circle]));
+
+        c_scales_river.push( d3.scaleLinear()
+        .domain(domains_river[k])
+        .range(["blue","red"]));
+    });
+
+    Object.keys(domains_dam).forEach(function(k){
+        scales_dam.push( d3.scaleLinear()
+        .domain(domains_dam[k])
+        .range([0, range_dam_rectangle]));
+
+        c_scales_dam.push( d3.scaleLinear()
+        .domain(domains_dam[k])
+        .range(["blue","red"]));
+    });
+
+
     d3.json("./data/hokkaido_topo.json",function(geodata_topo){
         // 地図描画
         var hokkaido_geo = topojson.merge(geodata_topo,geodata_topo.objects.hokkaido.geometries.filter(function(d){return d.properties.N03_001 == "北海道"}));
@@ -201,19 +134,11 @@ function init(){
         d3.csv("./data/siteinfo.csv")
           .get(function(data){
             data.forEach(function(d){siteinfos[d.site_id]=d})
+            Object.keys(domains_river).forEach(function(k){
+                positions.push( siteinfos[k].coordinate );
+            });
             d3.csv("./data/satsunai_dam_log.csv").row(row).get(function(data){
                 dam_log = data;
-                Object.keys(domains_dam).forEach(function(k){
-                    scales_dam.push( d3.scaleLinear()
-                    .domain(domains_dam[k])
-                    .range([0, range_dam_rectangle]));
-
-                    c_scales_dam.push( d3.scaleLinear()
-                    .domain(domains_dam[k])
-                    .range(["blue","red"]));
-                });
-
-
                 d3.csv("./data/water_level_log.csv").row(row).get(ready);
             });
           })
@@ -225,7 +150,7 @@ function init(){
                 }
                 Object.keys(d).forEach(function(k){
                     if(k=="coordinate") {
-                        var lon,lat;
+                        var lon, lat;
                         var row = d[k].split(" ");
                         lat = parseLonLat(row[1]);
                         lon = parseLonLat(row[3]);
@@ -235,6 +160,85 @@ function init(){
                 return d;
           });
     });
+
+    // 共通処理
+    function ready(data){
+        river_log = data;
+
+        var target_index = 0;
+        var target_row = get_row(data,target_index);
+        var target_interval;
+        var update_index = function(){
+            target_index += 1;
+            if(target_index>data.length-1) target_index = 0;
+            d3.select("#index-selector").property("value", target_index);
+            update_river(get_row(river_log,target_index),get_datetime(river_log,target_index));
+            update_dam(get_row(dam_log,target_index),get_datetime(dam_log,target_index));
+        }
+        d3.select("#index-selector").attr("max", data.length-1);
+        d3.select("#index-selector").on("input", function(){
+            clearInterval(target_interval);
+            update_river(get_row(river_log,this.value),get_datetime(river_log,this.value));
+            update_dam(get_row(dam_log,this.value),get_datetime(dam_log,this.value));
+        });
+        d3.select("#index-selector").on("change", function(){
+            target_index = +this.value;
+            target_interval = setInterval(update_index, 100);
+        });
+        target_interval = setInterval(update_index, 100);
+
+    }
+    var timeFormat = d3.timeFormat("%Y/%m/%d %H:%M");
+    function update_river(target_row,target_datetime){
+        var alert_counter = 0;
+        var circles = svg.selectAll("circle")
+        .data(target_row);
+        circles.enter()
+        .append("circle");
+        circles.exit().remove();
+        circles.attr("cx", function(d,i){
+            var x = projection(positions[i])[0];
+            return x;
+        }).attr("cy", function(d,i){
+            var y = projection(positions[i])[1];
+            return y;
+        })
+        .attr("r", function(d,i) {
+            var v = scales_river[i](d);
+            if(v<0) v = 1;
+            if(v>range_river_circle*0.8) alert_counter++; // 水位が大きくなったら警告フラグ発動
+            return v;
+        })
+        .attr("fill", function(d,i){
+            return c_scales_river[i](d);
+        });
+
+        text_date.text(timeFormat(target_datetime));
+        text_date.style("fill", alert_counter > 2 ? "red" : "black");
+    }
+
+    function update_dam(target_row,target_datetime){
+        var rects = svg.selectAll("rect")
+        .data(target_row);
+        rects.enter()
+        .append("rect");
+        rects.exit().remove();
+        rects.attr("x", 420)
+        .attr("y", function(d,i){
+            var y = (i+1) * 22 + 450;
+            return y;
+        })
+        .attr("height", 18)
+        .attr("width", function(d,i) {
+            var y = scales_dam[i](d);
+            if(y<0) y=1;
+            return y;
+        })
+        .attr("fill", function(d,i){
+            return c_scales_dam[i](d);
+        });
+    }
+
 
 }
 
