@@ -1,5 +1,5 @@
 
-var domains = {
+var domains_river = {
 "s301081281107010":[344.37, 347.52],
 "s301081281107020":[142.47,144.09],
 "s301081281107040":[60.03,64.79],
@@ -35,15 +35,29 @@ var domains = {
 "s301081281107400":[-0.15,3.2]
 }
 
+var domains_dam = {
+    "input" : [1.73, 707.31],
+    "stocked_amount":[9610, 45498],
+    "output": [3.6, 647.93]
+}
+
 function init(){
-    var rangeY = 40;
+    var range_river_circle = 40;
     var siteinfos = {};
-    var scalesY = [];
-    var colorScales = [];
+    var scales_river = [];
+    var c_scales_river = [];
     var positions = [];
-    var text_date;
-    var projection;    
+
+    var range_dam_rectangle = 200;
+    var scales_dam = [];
+    var c_scales_dam = [];
+
+    var projection;
+
+    var river_log, dam_log;
+
     var svg = d3.select("#drawarea").attr("width", "100%").attr("height", 660);
+    var text_date;
 
     /* 値変換 */
     function row(d){
@@ -64,15 +78,15 @@ function init(){
         return data[target_index]["datetime"];
     }
     function ready(data){
-        var d = data;
+        river_log = data;
 
-        Object.keys(domains).forEach(function(k){
-            scalesY.push( d3.scaleLinear()
-            .domain(domains[k])
-            .range([0, rangeY]));
+        Object.keys(domains_river).forEach(function(k){
+            scales_river.push( d3.scaleLinear()
+            .domain(domains_river[k])
+            .range([0, range_river_circle]));
 
-            colorScales.push( d3.scaleLinear()
-            .domain(domains[k])
+            c_scales_river.push( d3.scaleLinear()
+            .domain(domains_river[k])
             .range(["blue","red"]));
 
             positions.push( siteinfos[k].coordinate );
@@ -85,13 +99,14 @@ function init(){
             target_index += 1;
             if(target_index>data.length-1) target_index = 0;
             d3.select("#index-selector").property("value", target_index);
-            update(get_row(d,target_index),get_datetime(d,target_index));
+            update_river(get_row(river_log,target_index),get_datetime(river_log,target_index));
+            update_dam(get_row(dam_log,target_index),get_datetime(dam_log,target_index));
         }
-        update(target_row);
         d3.select("#index-selector").attr("max", data.length-1);
         d3.select("#index-selector").on("input", function(){
             clearInterval(target_interval);
-            update(get_row(d,this.value),get_datetime(d,this.value))
+            update_river(get_row(river_log,this.value),get_datetime(river_log,this.value));
+            update_dam(get_row(dam_log,this.value),get_datetime(dam_log,this.value));
         });
         d3.select("#index-selector").on("change", function(){
             target_index = +this.value;
@@ -100,32 +115,30 @@ function init(){
         target_interval = setInterval(update_index, 100);
 
     }
-    function update_rect(target_row,target_datetime){
+    function update_dam(target_row,target_datetime){
         var rects = svg.selectAll("rect")
         .data(target_row);
         rects.enter()
         .append("rect");
         rects.exit().remove();
-        rects.attr("class", "bar")
-        .attr("x", function(d,i){
-            var x = (i+1) * 12;
-            return x;
-        })
+        rects.attr("x", 420)
         .attr("y", function(d,i){
-            var y = rangeY - scalesY[i](d);
-            if(y<0)y=1;
+            var y = (i+1) * 22 + 450;
             return y;
         })
-        .attr("width", 10)
-        .attr("height", function(d,i) {
-            var y = scalesY[i](d);
+        .attr("height", 18)
+        .attr("width", function(d,i) {
+            var y = scales_dam[i](d);
             if(y<0) y=1;
             return y;
+        })
+        .attr("fill", function(d,i){
+            return c_scales_dam[i](d);
         });
-        text_date.text(target_datetime);
+
     }
     var timeFormat = d3.timeFormat("%Y/%m/%d %H:%M");
-    function update(target_row,target_datetime){
+    function update_river(target_row,target_datetime){
         var alert_counter = 0;
         var circles = svg.selectAll("circle")
         .data(target_row);
@@ -140,21 +153,22 @@ function init(){
             return y;
         })
         .attr("r", function(d,i) {
-            var v = scalesY[i](d);
+            var v = scales_river[i](d);
             if(v<0) v = 1;
-            if(v>rangeY*0.8) alert_counter++; // 水位が大きくなったら警告フラグ発動
+            if(v>range_river_circle*0.8) alert_counter++; // 水位が大きくなったら警告フラグ発動
             return v;
         })
         .attr("fill", function(d,i){
-            return colorScales[i](d);
+            return c_scales_river[i](d);
         });
 
         text_date.text(timeFormat(target_datetime));
-        text_date.style("fill", alert_counter > 3 ? "red" : "black");
+        text_date.style("fill", alert_counter > 2 ? "red" : "black");
     }
 
+    // 処理開始
     d3.json("./data/hokkaido_topo.json",function(geodata_topo){
-
+        // 地図描画
         var hokkaido_geo = topojson.merge(geodata_topo,geodata_topo.objects.hokkaido.geometries.filter(function(d){return d.properties.N03_001 == "北海道"}));
 
         var tokachi_geo = topojson.merge(geodata_topo,geodata_topo.objects.hokkaido.geometries.filter(function(d){return d.properties.N03_002 == "十勝総合振興局"}));
@@ -177,12 +191,31 @@ function init(){
             .attr("fill","#ffccbb");
 
         text_date = d3.select("#drawarea").append("text").attr("x",50).attr("y",600).text("").attr("font-size","56");
+        d3.select("#drawarea").append("text").attr("x",380).attr("y",460).text("札内川ダム").attr("font-size","20");
+        d3.select("#drawarea").append("text").attr("x",360).attr("y",487).text("流入量").attr("font-size","16");
+        d3.select("#drawarea").append("text").attr("x",360).attr("y",509).text("貯水量").attr("font-size","16");
+        d3.select("#drawarea").append("text").attr("x",360).attr("y",531).text("放流量").attr("font-size","16");
 
 
+        // データ読み込み開始
         d3.csv("./data/siteinfo.csv")
           .get(function(data){
             data.forEach(function(d){siteinfos[d.site_id]=d})
-            d3.csv("./data/water_level_log.csv").row(row).get(ready);
+            d3.csv("./data/satsunai_dam_log.csv").row(row).get(function(data){
+                dam_log = data;
+                Object.keys(domains_dam).forEach(function(k){
+                    scales_dam.push( d3.scaleLinear()
+                    .domain(domains_dam[k])
+                    .range([0, range_dam_rectangle]));
+
+                    c_scales_dam.push( d3.scaleLinear()
+                    .domain(domains_dam[k])
+                    .range(["blue","red"]));
+                });
+
+
+                d3.csv("./data/water_level_log.csv").row(row).get(ready);
+            });
           })
           .row(function(d){
                 function parseLonLat(x){
