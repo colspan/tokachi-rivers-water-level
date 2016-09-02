@@ -43,7 +43,7 @@ function init(){
     var positions = [];
     var text_date;
     var projection;    
-    var svg = d3.select("#drawarea").attr("width", 800).attr("height", 620);
+    var svg = d3.select("#drawarea").attr("width", "100%").attr("height", 660);
 
     /* 値変換 */
     function row(d){
@@ -80,15 +80,24 @@ function init(){
 
         var target_index = 0;
         var target_row = get_row(data,target_index);
-        update(target_row);
-        d3.select("#index-selector").attr("max", data.length-1);
-        d3.select("#index-selector").on("change", function(){update(get_row(d,this.value),get_datetime(d,this.value))});
-        setInterval(function(){
-            target_index++;
+        var target_interval;
+        var update_index = function(){
+            target_index += 1;
             if(target_index>data.length-1) target_index = 0;
             d3.select("#index-selector").property("value", target_index);
             update(get_row(d,target_index),get_datetime(d,target_index));
-        }, 100);
+        }
+        update(target_row);
+        d3.select("#index-selector").attr("max", data.length-1);
+        d3.select("#index-selector").on("input", function(){
+            clearInterval(target_interval);
+            update(get_row(d,this.value),get_datetime(d,this.value))
+        });
+        d3.select("#index-selector").on("change", function(){
+            target_index = +this.value;
+            target_interval = setInterval(update_index, 100);
+        });
+        target_interval = setInterval(update_index, 100);
 
     }
     function update_rect(target_row,target_datetime){
@@ -104,16 +113,20 @@ function init(){
         })
         .attr("y", function(d,i){
             var y = rangeY - scalesY[i](d);
+            if(y<0)y=1;
             return y;
         })
         .attr("width", 10)
         .attr("height", function(d,i) {
-            return scalesY[i](d);
+            var y = scalesY[i](d);
+            if(y<0) y=1;
+            return y;
         });
         text_date.text(target_datetime);
     }
+    var timeFormat = d3.timeFormat("%Y/%m/%d %H:%M");
     function update(target_row,target_datetime){
-        text_date.text(target_datetime);
+        text_date.text(timeFormat(target_datetime));
         var circles = svg.selectAll("circle")
         .data(target_row);
         circles.enter()
@@ -144,7 +157,7 @@ function init(){
 
         projection = d3.geoMercator()
 		.scale(18000)
-		.translate([300,120])
+		.translate([120,80])
 		.center(d3.geoCentroid(hokkaido_geo));
 
         var path = d3.geoPath().projection(projection);
@@ -159,13 +172,12 @@ function init(){
             .attr("d",path)
             .attr("fill","#ffccbb");
 
-        text_date = d3.select("#drawarea").append("text").attr("x",0).attr("y",600).text("");
+        text_date = d3.select("#drawarea").append("text").attr("x",50).attr("y",600).text("").attr("font-size","56");
 
 
         d3.csv("./data/siteinfo.csv")
           .get(function(data){
             data.forEach(function(d){siteinfos[d.site_id]=d})
-            console.log(siteinfos);
             d3.csv("./data/waterlevel_201608.csv").row(row).get(ready);
           })
           .row(function(d){
