@@ -126,7 +126,7 @@ function init(){
     }
     var timeFormat = d3.timeFormat("%Y/%m/%d %H:%M");
     function update(target_row,target_datetime){
-        text_date.text(timeFormat(target_datetime));
+        var alert_counter = 0;
         var circles = svg.selectAll("circle")
         .data(target_row);
         circles.enter()
@@ -142,11 +142,15 @@ function init(){
         .attr("r", function(d,i) {
             var v = scalesY[i](d);
             if(v<0) v = 1;
+            if(v>rangeY*0.8) alert_counter++; // 水位が大きくなったら警告フラグ発動
             return v;
         })
         .attr("fill", function(d,i){
             return colorScales[i](d);
         });
+
+        text_date.text(timeFormat(target_datetime));
+        text_date.style("fill", alert_counter > 3 ? "red" : "black");
     }
 
     d3.json("./data/hokkaido_topo.json",function(geodata_topo){
@@ -178,7 +182,7 @@ function init(){
         d3.csv("./data/siteinfo.csv")
           .get(function(data){
             data.forEach(function(d){siteinfos[d.site_id]=d})
-            d3.csv("./data/waterlevel_201608.csv").row(row).get(ready);
+            d3.csv("./data/water_level_log.csv").row(row).get(ready);
           })
           .row(function(d){
                 function parseLonLat(x){
