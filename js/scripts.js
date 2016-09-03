@@ -56,7 +56,11 @@ function init(){
 
     var river_log, dam_log;
 
-    var svg = d3.select("#drawarea").attr("width", "100%").attr("height", 660);
+    var svg = d3.select("#drawarea_map").attr("width", "100%").attr("height", 660);
+    var svg_path = d3.select("#drawarea_path")
+    .attr("width", "100%")
+    .attr("preserveAspectRatio", "xMinYMax meet")
+    .attr("viewBox", "0 0 800 50");
     var text_date;
 
     /* 値変換 */
@@ -123,14 +127,14 @@ function init(){
             .attr("d",path)
             .attr("fill","#ffccbb");
 
-        text_date = d3.select("#drawarea").append("text").attr("x",50).attr("y",600).text("").attr("font-size","56");
-        d3.select("#drawarea").append("text").attr("x",380).attr("y",460).text("札内川ダム").attr("font-size","20");
-        d3.select("#drawarea").append("text").attr("x",360).attr("y",487).text("流入量").attr("font-size","16");
-        d3.select("#drawarea").append("text").attr("x",360).attr("y",509).text("貯水量").attr("font-size","16");
-        d3.select("#drawarea").append("text").attr("x",360).attr("y",531).text("放流量").attr("font-size","16");
+        text_date = svg.append("text").attr("x",50).attr("y",600).text("").attr("font-size","56");
+        svg.append("text").attr("x",380).attr("y",460).text("札内川ダム").attr("font-size","20");
+        svg.append("text").attr("x",360).attr("y",487).text("流入量").attr("font-size","16");
+        svg.append("text").attr("x",360).attr("y",509).text("貯水量").attr("font-size","16");
+        svg.append("text").attr("x",360).attr("y",531).text("放流量").attr("font-size","16");
 
 
-        // データ読み込み開始
+        // データ読み込み開始 TODO promisify
         d3.csv("./data/siteinfo.csv")
           .get(function(data){
             data.forEach(function(d){siteinfos[d.site_id]=d})
@@ -160,10 +164,10 @@ function init(){
                 return d;
           });
     });
-
-    // 共通処理
     function ready(data){
         river_log = data;
+
+        draw_dam_level_path();
 
         var target_index = 0;
         var target_row = get_row(data,target_index);
@@ -188,6 +192,7 @@ function init(){
         target_interval = setInterval(update_index, 100);
 
     }
+    // 共通処理
     var timeFormat = d3.timeFormat("%Y/%m/%d %H:%M");
     function update_river(target_row,target_datetime){
         var alert_counter = 0;
@@ -239,6 +244,24 @@ function init(){
         });
     }
 
+    var dam_level_path_x, dam_level_path_y;
+    function draw_dam_level_path(){
+        var window_width = 800;
+        var dam_level_path_x = d3.scaleLinear()
+        .domain([0,dam_log.length])
+        .range([0, window_width]);
+        var dam_level_path_y = d3.scaleLinear()
+        .domain(domains_dam["input"])
+        .range([50, 0]);
+
+        svg_path.append("path").datum(dam_log);
+        var line = d3.line()
+        .x(function(d,i) { return dam_level_path_x(i); })
+        .y(function(d) { return dam_level_path_y(d.input); });
+        svg_path.select("path")
+        .attr("d", line)
+        .attr("fill","#aaaadd");
+    }
 
 }
 
