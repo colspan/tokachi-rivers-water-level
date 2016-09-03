@@ -56,7 +56,11 @@ function init(){
 
     var river_log, dam_log;
 
-    var svg = d3.select("#drawarea").attr("width", "100%").attr("height", 660);
+    var svg = d3.select("#drawarea_map").attr("width", "100%").attr("height", 660);
+    var svg_path = d3.select("#drawarea_path")
+    .attr("width", "100%")
+    .attr("preserveAspectRatio", "xMinYMax meet")
+    .attr("viewBox", "0 0 800 50");
     var text_date;
 
     /* 値変換 */
@@ -77,20 +81,93 @@ function init(){
     function get_datetime(data,target_index){
         return data[target_index]["datetime"];
     }
+    // 処理開始
+
+    Object.keys(domains_river).forEach(function(k){
+        scales_river.push( d3.scaleLinear()
+        .domain(domains_river[k])
+        .range([0, range_river_circle]));
+
+        c_scales_river.push( d3.scaleLinear()
+        .domain(domains_river[k])
+        .range(["blue","red"]));
+    });
+
+    Object.keys(domains_dam).forEach(function(k){
+        scales_dam.push( d3.scaleLinear()
+        .domain(domains_dam[k])
+        .range([0, range_dam_rectangle]));
+
+        c_scales_dam.push( d3.scaleLinear()
+        .domain(domains_dam[k])
+        .range(["blue","red"]));
+    });
+
+
+    d3.json("./data/hokkaido_topo.json",function(geodata_topo){
+        // 地図描画
+        var hokkaido_geo = topojson.merge(geodata_topo,geodata_topo.objects.hokkaido.geometries.filter(function(d){return d.properties.N03_001 == "北海道"}));
+
+        var tokachi_geo = topojson.merge(geodata_topo,geodata_topo.objects.hokkaido.geometries.filter(function(d){return d.properties.N03_002 == "十勝総合振興局"}));
+
+        projection = d3.geoMercator()
+		.scale(18000)
+		.translate([120,80])
+		.center(d3.geoCentroid(hokkaido_geo));
+
+        var path = d3.geoPath().projection(projection);
+        svg.append("path")
+            .datum(hokkaido_geo)
+            .attr("d",path)
+            .attr("fill","#ddddcc");
+
+        var path = d3.geoPath().projection(projection);
+        svg.append("path")
+            .datum(tokachi_geo)
+            .attr("d",path)
+            .attr("fill","#ffccbb");
+
+        text_date = svg.append("text").attr("x",50).attr("y",600).text("").attr("font-size","56");
+        svg.append("text").attr("x",380).attr("y",460).text("札内川ダム").attr("font-size","20");
+        svg.append("text").attr("x",360).attr("y",487).text("流入量").attr("font-size","16");
+        svg.append("text").attr("x",360).attr("y",509).text("貯水量").attr("font-size","16");
+        svg.append("text").attr("x",360).attr("y",531).text("放流量").attr("font-size","16");
+
+
+        // データ読み込み開始 TODO promisify
+        d3.csv("./data/siteinfo.csv")
+          .get(function(data){
+            data.forEach(function(d){siteinfos[d.site_id]=d})
+            Object.keys(domains_river).forEach(function(k){
+                positions.push( siteinfos[k].coordinate );
+            });
+            d3.csv("./data/satsunai_dam_log.csv").row(row).get(function(data){
+                dam_log = data;
+                d3.csv("./data/water_level_log.csv").row(row).get(ready);
+            });
+          })
+          .row(function(d){
+                function parseLonLat(x){
+                    var reg = new RegExp("[度分秒]");
+                    var row = x.split(reg);
+                    return +row[0] + (+row[1])/60 + (+row[2])/60/60;
+                }
+                Object.keys(d).forEach(function(k){
+                    if(k=="coordinate") {
+                        var lon, lat;
+                        var row = d[k].split(" ");
+                        lat = parseLonLat(row[1]);
+                        lon = parseLonLat(row[3]);
+                        d[k] = [lon,lat];
+                    }
+                });
+                return d;
+          });
+    });
     function ready(data){
         river_log = data;
 
-        Object.keys(domains_river).forEach(function(k){
-            scales_river.push( d3.scaleLinear()
-            .domain(domains_river[k])
-            .range([0, range_river_circle]));
-
-            c_scales_river.push( d3.scaleLinear()
-            .domain(domains_river[k])
-            .range(["blue","red"]));
-
-            positions.push( siteinfos[k].coordinate );
-        });
+        draw_dam_level_path();
 
         var target_index = 0;
         var target_row = get_row(data,target_index);
@@ -115,28 +192,7 @@ function init(){
         target_interval = setInterval(update_index, 100);
 
     }
-    function update_dam(target_row,target_datetime){
-        var rects = svg.selectAll("rect")
-        .data(target_row);
-        rects.enter()
-        .append("rect");
-        rects.exit().remove();
-        rects.attr("x", 420)
-        .attr("y", function(d,i){
-            var y = (i+1) * 22 + 450;
-            return y;
-        })
-        .attr("height", 18)
-        .attr("width", function(d,i) {
-            var y = scales_dam[i](d);
-            if(y<0) y=1;
-            return y;
-        })
-        .attr("fill", function(d,i){
-            return c_scales_dam[i](d);
-        });
-
-    }
+    // 共通処理
     var timeFormat = d3.timeFormat("%Y/%m/%d %H:%M");
     function update_river(target_row,target_datetime){
         var alert_counter = 0;
@@ -166,75 +222,46 @@ function init(){
         text_date.style("fill", alert_counter > 2 ? "red" : "black");
     }
 
-    // 処理開始
-    d3.json("./data/hokkaido_topo.json",function(geodata_topo){
-        // 地図描画
-        var hokkaido_geo = topojson.merge(geodata_topo,geodata_topo.objects.hokkaido.geometries.filter(function(d){return d.properties.N03_001 == "北海道"}));
+    function update_dam(target_row,target_datetime){
+        var rects = svg.selectAll("rect")
+        .data(target_row);
+        rects.enter()
+        .append("rect");
+        rects.exit().remove();
+        rects.attr("x", 420)
+        .attr("y", function(d,i){
+            var y = (i+1) * 22 + 450;
+            return y;
+        })
+        .attr("height", 18)
+        .attr("width", function(d,i) {
+            var y = scales_dam[i](d);
+            if(y<0) y=1;
+            return y;
+        })
+        .attr("fill", function(d,i){
+            return c_scales_dam[i](d);
+        });
+    }
 
-        var tokachi_geo = topojson.merge(geodata_topo,geodata_topo.objects.hokkaido.geometries.filter(function(d){return d.properties.N03_002 == "十勝総合振興局"}));
+    var dam_level_path_x, dam_level_path_y;
+    function draw_dam_level_path(){
+        var window_width = 800;
+        var dam_level_path_x = d3.scaleLinear()
+        .domain([0,dam_log.length])
+        .range([0, window_width]);
+        var dam_level_path_y = d3.scaleLinear()
+        .domain(domains_dam["input"])
+        .range([50, 0]);
 
-        projection = d3.geoMercator()
-		.scale(18000)
-		.translate([120,80])
-		.center(d3.geoCentroid(hokkaido_geo));
-
-        var path = d3.geoPath().projection(projection);
-        svg.append("path")
-            .datum(hokkaido_geo)
-            .attr("d",path)
-            .attr("fill","#ddddcc");
-
-        var path = d3.geoPath().projection(projection);
-        svg.append("path")
-            .datum(tokachi_geo)
-            .attr("d",path)
-            .attr("fill","#ffccbb");
-
-        text_date = d3.select("#drawarea").append("text").attr("x",50).attr("y",600).text("").attr("font-size","56");
-        d3.select("#drawarea").append("text").attr("x",380).attr("y",460).text("札内川ダム").attr("font-size","20");
-        d3.select("#drawarea").append("text").attr("x",360).attr("y",487).text("流入量").attr("font-size","16");
-        d3.select("#drawarea").append("text").attr("x",360).attr("y",509).text("貯水量").attr("font-size","16");
-        d3.select("#drawarea").append("text").attr("x",360).attr("y",531).text("放流量").attr("font-size","16");
-
-
-        // データ読み込み開始
-        d3.csv("./data/siteinfo.csv")
-          .get(function(data){
-            data.forEach(function(d){siteinfos[d.site_id]=d})
-            d3.csv("./data/satsunai_dam_log.csv").row(row).get(function(data){
-                dam_log = data;
-                Object.keys(domains_dam).forEach(function(k){
-                    scales_dam.push( d3.scaleLinear()
-                    .domain(domains_dam[k])
-                    .range([0, range_dam_rectangle]));
-
-                    c_scales_dam.push( d3.scaleLinear()
-                    .domain(domains_dam[k])
-                    .range(["blue","red"]));
-                });
-
-
-                d3.csv("./data/water_level_log.csv").row(row).get(ready);
-            });
-          })
-          .row(function(d){
-                function parseLonLat(x){
-                    var reg = new RegExp("[度分秒]");
-                    var row = x.split(reg);
-                    return +row[0] + (+row[1])/60 + (+row[2])/60/60;
-                }
-                Object.keys(d).forEach(function(k){
-                    if(k=="coordinate") {
-                        var lon,lat;
-                        var row = d[k].split(" ");
-                        lat = parseLonLat(row[1]);
-                        lon = parseLonLat(row[3]);
-                        d[k] = [lon,lat];
-                    }
-                });
-                return d;
-          });
-    });
+        svg_path.append("path").datum(dam_log);
+        var line = d3.line()
+        .x(function(d,i) { return dam_level_path_x(i); })
+        .y(function(d) { return dam_level_path_y(d.input); });
+        svg_path.select("path")
+        .attr("d", line)
+        .attr("fill","#aaaadd");
+    }
 
 }
 
