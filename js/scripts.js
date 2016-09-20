@@ -36,10 +36,14 @@ var domains_river = {
 }
 
 var domains_dam = {
-    "input" : [1.73, 707.31],
-    "stocked_amount":[9610, 45498],
-    "output": [3.6, 647.93]
+    "d00_input" : [1.73, 707.31],
+    "d00_stocked_amount":[9610, 45498],
+    "d00_output": [3.6, 647.93],
+    "d01_input" : [0, 995.39],
+    "d01_stocked_amount":[641, 61511],
+    "d01_output": [0, 267]
 }
+
 
 function init(){
     var range_river_circle = 40;
@@ -128,11 +132,14 @@ function init(){
             .attr("fill","#ffccbb");
 
         text_date = svg.append("text").attr("x",50).attr("y",600).text("").attr("font-size","56");
-        svg.append("text").attr("x",380).attr("y",460).text("札内川ダム").attr("font-size","20");
-        svg.append("text").attr("x",360).attr("y",487).text("流入量").attr("font-size","16");
-        svg.append("text").attr("x",360).attr("y",509).text("貯水量").attr("font-size","16");
-        svg.append("text").attr("x",360).attr("y",531).text("放流量").attr("font-size","16");
-
+        svg.append("text").attr("x",400).attr("y",420).text("札内川ダム").attr("font-size","20");
+        svg.append("text").attr("x",505).attr("y",417).text("流入量").attr("font-size","16");
+        svg.append("text").attr("x",505).attr("y",439).text("貯水量").attr("font-size","16");
+        svg.append("text").attr("x",505).attr("y",461).text("放流量").attr("font-size","16");
+        svg.append("text").attr("x",400).attr("y",486).text("十勝川ダム").attr("font-size","20");
+        svg.append("text").attr("x",505).attr("y",483).text("流入量").attr("font-size","16");
+        svg.append("text").attr("x",505).attr("y",505).text("貯水量").attr("font-size","16");
+        svg.append("text").attr("x",505).attr("y",527).text("放流量").attr("font-size","16");
 
         // データ読み込み開始 TODO promisify
         d3.csv("./data/siteinfo.csv")
@@ -141,7 +148,7 @@ function init(){
             Object.keys(domains_river).forEach(function(k){
                 positions.push( siteinfos[k].coordinate );
             });
-            d3.csv("./data/satsunai_dam_log.csv").row(row).get(function(data){
+            d3.csv("./data/dam_log.csv").row(row).get(function(data){
                 dam_log = data;
                 d3.csv("./data/water_level_log.csv").row(row).get(ready);
             });
@@ -228,9 +235,9 @@ function init(){
         rects.enter()
         .append("rect");
         rects.exit().remove();
-        rects.attr("x", 420)
+        rects.attr("x", 560)
         .attr("y", function(d,i){
-            var y = (i+1) * 22 + 450;
+            var y = (i+1) * 22 + 380;
             return y;
         })
         .attr("height", 18)
@@ -251,13 +258,13 @@ function init(){
         .domain([0,dam_log.length])
         .range([0, window_width]);
         var dam_level_path_y = d3.scaleLinear()
-        .domain(domains_dam["input"])
+        .domain(domains_dam.d00_input)
         .range([50, 0]);
 
         svg_path.append("path").datum(dam_log);
         var line = d3.line()
         .x(function(d,i) { return dam_level_path_x(i); })
-        .y(function(d) { return dam_level_path_y(d.input); });
+        .y(function(d) { return dam_level_path_y(d.d00_input); });
         svg_path.select("path")
         .attr("d", line)
         .attr("fill","#aaaadd");
