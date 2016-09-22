@@ -58,6 +58,7 @@ function init(){
 
     var projection;
 
+    var geodata_topo;
     var river_log, dam_log;
 
     var svg = d3.select("#drawarea_map").attr("width", "100%").attr("height", 660);
@@ -85,8 +86,8 @@ function init(){
     function get_datetime(data,target_index){
         return data[target_index]["datetime"];
     }
-    // 処理開始
 
+    // 値域定義
     Object.keys(domains_river).forEach(function(k){
         scales_river.push( d3.scaleLinear()
         .domain(domains_river[k])
@@ -107,8 +108,73 @@ function init(){
         .range(["blue","red"]));
     });
 
+    // データ読み込み
+    var p_data_hokkaido = new Promise(function(resolve, reject){
+        d3.json("./data/hokkaido_topo.json",function(error, data){
+            if(error){
+                reject(error);
+                return;
+            }
+            geodata_topo = data;
+            resolve(data);
+        });
+    });
+    var p_data_siteinfo = new Promise(function(resolve, reject){
+        d3.csv("./data/siteinfo.csv")
+          .get(function(error, data){
+            if(error){
+                reject(error);
+                return;
+            }
+            data.forEach(function(d){siteinfos[d.site_id]=d})
+            Object.keys(domains_river).forEach(function(k){
+                positions.push( siteinfos[k].coordinate );
+            });
+            resolve(siteinfos);
+          })
+          .row(function(d){
+            function parseLonLat(x){
+                var reg = new RegExp("[度分秒]");
+                var row = x.split(reg);
+                return +row[0] + (+row[1])/60 + (+row[2])/60/60;
+            }
+            Object.keys(d).forEach(function(k){
+                if(k=="coordinate") {
+                    var lon, lat;
+                    var row = d[k].split(" ");
+                    lat = parseLonLat(row[1]);
+                    lon = parseLonLat(row[3]);
+                    d[k] = [lon,lat];
+                }
+            });
+            return d;
+        });
+    });
+    var p_data_dam_log = new Promise(function(resolve, reject){
+        d3.csv("./data/dam_log.csv").row(row).get(function(error, data){
+            if(error){
+                reject(error);
+                return;
+            }
+            dam_log = data;
+            resolve(data);
+        });
+    });
+    var p_data_river_log = new Promise(function(resolve, reject){
+        d3.csv("./data/water_level_log.csv").row(row).get(function(error, data){
+            if(error){
+                reject(error);
+                return;
+            }
+            river_log = data;
+            resolve(data);
+        });
+    });
 
-    d3.json("./data/hokkaido_topo.json",function(geodata_topo){
+    // 処理開始
+    Promise.all([p_data_hokkaido, p_data_siteinfo, p_data_dam_log, p_data_river_log]).then(ready);
+
+    function ready(data){
         // 地図描画
         var hokkaido_geo = topojson.merge(geodata_topo,geodata_topo.objects.hokkaido.geometries.filter(function(d){return d.properties.N03_001 == "北海道"}));
 
@@ -141,52 +207,19 @@ function init(){
         svg.append("text").attr("x",505).attr("y",505).text("貯水量").attr("font-size","16");
         svg.append("text").attr("x",505).attr("y",527).text("放流量").attr("font-size","16");
 
-        // データ読み込み開始 TODO promisify
-        d3.csv("./data/siteinfo.csv")
-          .get(function(data){
-            data.forEach(function(d){siteinfos[d.site_id]=d})
-            Object.keys(domains_river).forEach(function(k){
-                positions.push( siteinfos[k].coordinate );
-            });
-            d3.csv("./data/dam_log.csv").row(row).get(function(data){
-                dam_log = data;
-                d3.csv("./data/water_level_log.csv").row(row).get(ready);
-            });
-          })
-          .row(function(d){
-                function parseLonLat(x){
-                    var reg = new RegExp("[度分秒]");
-                    var row = x.split(reg);
-                    return +row[0] + (+row[1])/60 + (+row[2])/60/60;
-                }
-                Object.keys(d).forEach(function(k){
-                    if(k=="coordinate") {
-                        var lon, lat;
-                        var row = d[k].split(" ");
-                        lat = parseLonLat(row[1]);
-                        lon = parseLonLat(row[3]);
-                        d[k] = [lon,lat];
-                    }
-                });
-                return d;
-          });
-    });
-    function ready(data){
-        river_log = data;
-
         draw_dam_level_path();
 
         var target_index = 0;
-        var target_row = get_row(data,target_index);
+        var target_row = get_row(river_log,target_index);
         var target_interval;
         var update_index = function(){
             target_index += 1;
-            if(target_index>data.length-1) target_index = 0;
+            if(target_index>river_log.length-1) target_index = 0;
             d3.select("#index-selector").property("value", target_index);
             update_river(get_row(river_log,target_index),get_datetime(river_log,target_index));
             update_dam(get_row(dam_log,target_index),get_datetime(dam_log,target_index));
         }
-        d3.select("#index-selector").attr("max", data.length-1);
+        d3.select("#index-selector").attr("max", river_log.length-1);
         d3.select("#index-selector").on("input", function(){
             clearInterval(target_interval);
             update_river(get_row(river_log,this.value),get_datetime(river_log,this.value));
