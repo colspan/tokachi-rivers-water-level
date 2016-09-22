@@ -36,12 +36,12 @@ var domains_river = {
 }
 
 var domains_dam = {
-    "d00_input" : [1.73, 707.31],
-    "d00_stocked_amount":[9610, 45498],
-    "d00_output": [3.6, 647.93],
-    "d01_input" : [0, 995.39],
+    "d00_input" : [0, 1000],
+    "d00_stocked_amount":[641, 61511],
+    "d00_output": [0, 1000],
+    "d01_input" : [0, 1000],
     "d01_stocked_amount":[641, 61511],
-    "d01_output": [0, 267]
+    "d01_output": [0, 1000]
 }
 
 
